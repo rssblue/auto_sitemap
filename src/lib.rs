@@ -11,6 +11,7 @@ struct Url(UrlUrl);
 #[yaserde(
     rename = "urlset",
     namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    namespace = "xhtml: http://www.w3.org/1999/xhtml"
 )]
 struct Sitemap {
     #[yaserde(rename = "url")]
@@ -21,6 +22,17 @@ struct Sitemap {
 struct Page {
     loc: Url,
     lastmod: DateTime<Utc>,
+    #[yaserde(prefix = "xhtml")]
+    meta: Option<Meta>,
+}
+
+#[derive(YaSerialize)]
+#[yaserde(namespace = "xhtml: http://www.w3.org/1999/xhtml")]
+struct Meta {
+    #[yaserde(attribute)]
+    name: String,
+    #[yaserde(attribute)]
+    content: String,
 }
 
 impl yaserde::YaSerialize for DateTime<Utc> {
@@ -104,6 +116,10 @@ fn test() {
                 chrono::NaiveDateTime::from_timestamp_opt(61, 0).unwrap(),
                 Utc,
             )),
+            meta: Some(Meta {
+                name: "auto_sitemap_hash".into(),
+                content: "1234567890".into(),
+            }),
         }],
     };
 
@@ -116,10 +132,11 @@ fn test() {
     assert_eq!(
         serialized,
         r#"<?xml version="1.0" encoding="utf-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://example.com/</loc>
     <lastmod>1970-01-01T00:01:01Z</lastmod>
+    <xhtml:meta name="auto_sitemap_hash" content="1234567890" />
   </url>
 </urlset>"#,
     );
