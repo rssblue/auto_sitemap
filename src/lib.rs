@@ -147,11 +147,16 @@ impl yaserde::YaDeserialize for Url {
     }
 }
 
-#[test]
-fn test() {
+#[cfg(test)]
+mod tests {
+    use super::*;
     use pretty_assertions::assert_eq;
 
-    let str_representation = r#"<?xml version="1.0" encoding="utf-8"?>
+    #[test]
+    fn test_serialize_and_deserialize() {
+        use pretty_assertions::assert_eq;
+
+        let str_representation = r#"<?xml version="1.0" encoding="utf-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://example.com/</loc>
@@ -160,27 +165,28 @@ fn test() {
   </url>
 </urlset>"#;
 
-    let sitemap = Sitemap {
-        pages: vec![Page {
-            loc: Some(Url(UrlUrl::parse("https://example.com").unwrap())),
-            lastmod: Some(DateTime(ChronoDateTime::<Utc>::from_utc(
-                chrono::NaiveDateTime::from_timestamp_opt(61, 0).unwrap(),
-                Utc,
-            ))),
-            meta: Some(Meta {
-                name: "auto_sitemap_hash".into(),
-                content: "1234567890".into(),
-            }),
-        }],
-    };
+        let sitemap = Sitemap {
+            pages: vec![Page {
+                loc: Some(Url(UrlUrl::parse("https://example.com").unwrap())),
+                lastmod: Some(DateTime(ChronoDateTime::<Utc>::from_utc(
+                    chrono::NaiveDateTime::from_timestamp_opt(61, 0).unwrap(),
+                    Utc,
+                ))),
+                meta: Some(Meta {
+                    name: "auto_sitemap_hash".into(),
+                    content: "1234567890".into(),
+                }),
+            }],
+        };
 
-    let yaserde_cfg = yaserde::ser::Config {
-        perform_indent: true,
-        ..Default::default()
-    };
-    let serialized = yaserde::ser::to_string_with_config(&sitemap, &yaserde_cfg).unwrap();
-    let deserialized: Sitemap = yaserde::de::from_str(str_representation).unwrap();
+        let yaserde_cfg = yaserde::ser::Config {
+            perform_indent: true,
+            ..Default::default()
+        };
+        let serialized = yaserde::ser::to_string_with_config(&sitemap, &yaserde_cfg).unwrap();
+        let deserialized: Sitemap = yaserde::de::from_str(str_representation).unwrap();
 
-    assert_eq!(serialized, str_representation);
-    assert_eq!(deserialized, sitemap);
+        assert_eq!(serialized, str_representation);
+        assert_eq!(deserialized, sitemap);
+    }
 }
