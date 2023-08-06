@@ -1,4 +1,5 @@
 use chrono::{DateTime as ChronoDateTime, Utc};
+use spider::website::Website;
 use url::Url as UrlUrl;
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
@@ -147,15 +148,25 @@ impl yaserde::YaDeserialize for Url {
     }
 }
 
+async fn website_urls(website: UrlUrl) -> Result<Vec<UrlUrl>, String> {
+    let mut urls = vec![];
+    let mut website: Website = Website::new(website.as_str());
+
+    website.scrape().await;
+
+    for page in website.get_pages().unwrap().iter() {
+        urls.push(UrlUrl::parse(page.get_url().clone()).unwrap())
+    }
+
+    Ok(urls)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_serialize_and_deserialize() {
-        use pretty_assertions::assert_eq;
-
         let str_representation = r#"<?xml version="1.0" encoding="utf-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
@@ -186,7 +197,109 @@ mod tests {
         let serialized = yaserde::ser::to_string_with_config(&sitemap, &yaserde_cfg).unwrap();
         let deserialized: Sitemap = yaserde::de::from_str(str_representation).unwrap();
 
-        assert_eq!(serialized, str_representation);
-        assert_eq!(deserialized, sitemap);
+        pretty_assertions::assert_eq!(serialized, str_representation);
+        pretty_assertions::assert_eq!(deserialized, sitemap);
+    }
+
+    mod website_urls {
+        use super::*;
+        use axum::response::Html;
+        use axum::{routing::get, Router};
+        use std::net::SocketAddr;
+
+        #[tokio::test]
+        async fn test_website_urls() {
+            let app = Router::new()
+                .route("/", get(root))
+                .route("/a", get(a))
+                .route("/b", get(b))
+                .route("/c", get(c))
+                .route("/d", get(d));
+
+            let port = 3000;
+            let addr = SocketAddr::from(([127, 0, 0, 1], port));
+            let server = axum::Server::bind(&addr).serve(app.into_make_service());
+
+            // Prepare some signal for when the server should start shutting down...
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+            let graceful = server.with_graceful_shutdown(async {
+                rx.await.ok();
+            });
+
+            println!("Listening on http://localhost:{port}");
+            tokio::spawn(async {
+                if let Err(e) = graceful.await {
+                    eprintln!("server error: {}", e);
+                }
+            });
+
+            let urls = website_urls(UrlUrl::parse("http://localhost:3000").unwrap())
+                .await
+                .unwrap();
+
+            // Shut down the server...
+            let _ = tx.send(());
+
+            let correct_urls = vec![
+                UrlUrl::parse("http://localhost:3000/").unwrap(),
+                UrlUrl::parse("http://localhost:3000/a").unwrap(),
+                UrlUrl::parse("http://localhost:3000/b").unwrap(),
+                UrlUrl::parse("http://localhost:3000/c").unwrap(),
+                // Shouldn't be reachable by crawling:
+                // UrlUrl::parse("http://localhost:3000/d").unwrap(),
+            ];
+
+            pretty_assertions::assert_eq!(urls, correct_urls);
+        }
+
+        async fn root() -> Html<&'static str> {
+            Html(
+                r#"
+            <html><body>
+                <a href="/a">Reachable from home</a>
+                <a href="/b">Reachable from home and a</a>
+            </body></html>
+        "#,
+            )
+        }
+
+        async fn a() -> Html<&'static str> {
+            Html(
+                r#"
+            <html>
+                <body>
+                    <a href="/b">Reachable from home and a</a>
+                    <a href="/c">Reachable from home a</a>
+                </body>
+            </html>
+        "#,
+            )
+        }
+
+        async fn b() -> Html<&'static str> {
+            Html(
+                r#"
+            <html></html>
+        "#,
+            )
+        }
+
+        async fn c() -> Html<&'static str> {
+            Html(
+                r#"
+            <html></html>
+        "#,
+            )
+        }
+
+        async fn d() -> Html<&'static str> {
+            Html(
+                r#"
+            <html><body>
+                <h1>Unreachable!</h1>
+            </body></html>
+        "#,
+            )
+        }
     }
 }
