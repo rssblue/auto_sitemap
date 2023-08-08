@@ -6,7 +6,7 @@ use yaserde_derive::{YaDeserialize, YaSerialize};
 #[derive(Debug, PartialEq)]
 struct DateTime<Tz: chrono::TimeZone>(ChronoDateTime<Tz>);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 struct Url(UrlUrl);
 
 /// Sitemap of the website.
@@ -16,7 +16,7 @@ struct Url(UrlUrl);
     namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
     namespace = "xhtml: http://www.w3.org/1999/xhtml"
 )]
-struct Sitemap {
+pub struct Sitemap {
     #[yaserde(rename = "url")]
     pages: Vec<Page>,
 }
@@ -148,17 +148,34 @@ impl yaserde::YaDeserialize for Url {
     }
 }
 
-async fn website_urls(website: UrlUrl) -> Result<Vec<UrlUrl>, String> {
-    let mut urls = vec![];
+async fn website_pages(website: UrlUrl) -> Result<Vec<Page>, String> {
+    let mut pages = vec![];
     let mut website: Website = Website::new(website.as_str());
 
     website.scrape().await;
 
     for page in website.get_pages().unwrap().iter() {
-        urls.push(UrlUrl::parse(page.get_url().clone()).unwrap())
+        let url = UrlUrl::parse(page.get_url()).unwrap();
+        let contents = page.get_html();
+        let hash = md5::compute(contents);
+        pages.push(Page {
+            loc: Some(Url(url)),
+            lastmod: Some(DateTime(chrono::Utc::now())),
+            meta: Some(Meta {
+                name: "auto_sitemap_md5_hash".to_string(),
+                content: format!("{:x}", hash),
+            }),
+        });
     }
 
-    Ok(urls)
+    Ok(pages)
+}
+
+pub async fn produce_sitemap(website: UrlUrl) -> Result<Sitemap, String> {
+    let pages = website_pages(website).await?;
+    let sitemap = Sitemap { pages };
+
+    Ok(sitemap)
 }
 
 #[cfg(test)]
@@ -172,7 +189,7 @@ mod tests {
   <url>
     <loc>https://example.com/</loc>
     <lastmod>1970-01-01T00:01:01Z</lastmod>
-    <xhtml:meta name="auto_sitemap_hash" content="1234567890" />
+    <xhtml:meta name="auto_sitemap_md5_hash" content="0123456789abcdef0123456789abcdef" />
   </url>
 </urlset>"#;
 
@@ -184,8 +201,8 @@ mod tests {
                     Utc,
                 ))),
                 meta: Some(Meta {
-                    name: "auto_sitemap_hash".into(),
-                    content: "1234567890".into(),
+                    name: "auto_sitemap_md5_hash".into(),
+                    content: "0123456789abcdef0123456789abcdef".into(),
                 }),
             }],
         };
@@ -208,7 +225,7 @@ mod tests {
         use std::net::SocketAddr;
 
         #[tokio::test]
-        async fn test_website_urls() {
+        async fn test_website_pages() {
             let app = Router::new()
                 .route("/", get(root))
                 .route("/a", get(a))
@@ -233,7 +250,7 @@ mod tests {
                 }
             });
 
-            let urls = website_urls(UrlUrl::parse("http://localhost:3000").unwrap())
+            let pages = website_pages(UrlUrl::parse("http://localhost:3000").unwrap())
                 .await
                 .unwrap();
 
@@ -249,7 +266,9 @@ mod tests {
                 // UrlUrl::parse("http://localhost:3000/d").unwrap(),
             ];
 
-            pretty_assertions::assert_eq!(urls, correct_urls);
+            for (page, correct_url) in pages.iter().zip(correct_urls.iter()) {
+                pretty_assertions::assert_eq!(page.loc, Some(Url(correct_url.clone())));
+            }
         }
 
         async fn root() -> Html<&'static str> {
