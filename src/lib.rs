@@ -1,41 +1,127 @@
 use chrono::{DateTime as ChronoDateTime, Utc};
 use spider::website::Website;
-use url::Url as UrlUrl;
+use url::Url;
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 #[derive(Debug, PartialEq)]
 struct DateTime<Tz: chrono::TimeZone>(ChronoDateTime<Tz>);
 
 #[derive(Debug, PartialEq, Clone)]
-struct Url(UrlUrl);
+struct UrlSerde(Url);
 
 /// Sitemap of the website.
+#[derive(Debug, PartialEq)]
+pub struct Sitemap {
+    pages: Vec<Page>,
+}
+
+impl From<SitemapSerde> for Sitemap {
+    fn from(sitemap_serde: SitemapSerde) -> Self {
+        let pages = sitemap_serde
+            .pages
+            .into_iter()
+            .map(|page| Page {
+                url: page.url.map(|url| url.0),
+                lastmod: page.lastmod,
+                meta: page.meta,
+            })
+            .collect();
+        Self { pages }
+    }
+}
+
+impl Sitemap {
+    pub fn deserialize<R: std::io::Read>(reader: R) -> Result<Self, String> {
+        let mut sitemap_serde: SitemapSerde = yaserde::de::from_reader(reader)
+            .map_err(|e| format!("failed to deserialize: {}", e))?;
+        let pages = sitemap_serde
+            .pages
+            .drain(..)
+            .map(|page| page.into())
+            .collect();
+
+        Ok(Self { pages })
+    }
+
+    pub fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), String> {
+        let sitemap_serde: SitemapSerde = self.into();
+
+        let yaserde_cfg = yaserde::ser::Config {
+            perform_indent: true,
+            ..Default::default()
+        };
+        yaserde::ser::serialize_with_writer(&sitemap_serde, writer, &yaserde_cfg)
+            .map_err(|e| format!("failed to serialize: {}", e))?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Page {
+    url: Option<Url>,
+    lastmod: Option<DateTime<Utc>>,
+    meta: Option<Meta>,
+}
+
+impl From<PageSerde> for Page {
+    fn from(page_serde: PageSerde) -> Self {
+        Self {
+            url: page_serde.url.map(|url| url.0),
+            lastmod: page_serde.lastmod,
+            meta: page_serde.meta,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, YaSerialize, YaDeserialize)]
+#[yaserde(namespace = "xhtml: http://www.w3.org/1999/xhtml")]
+pub struct Meta {
+    #[yaserde(attribute)]
+    name: String,
+    #[yaserde(attribute)]
+    content: String,
+}
+
 #[derive(Debug, PartialEq, YaSerialize, YaDeserialize)]
 #[yaserde(
     rename = "urlset",
     namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
     namespace = "xhtml: http://www.w3.org/1999/xhtml"
 )]
-pub struct Sitemap {
+struct SitemapSerde {
     #[yaserde(rename = "url")]
-    pages: Vec<Page>,
+    pages: Vec<PageSerde>,
+}
+
+impl From<&Sitemap> for SitemapSerde {
+    fn from(sitemap: &Sitemap) -> Self {
+        let pages = sitemap
+            .pages
+            .iter()
+            .map(|page| page.into())
+            .collect::<Vec<_>>();
+        SitemapSerde { pages }
+    }
 }
 
 #[derive(Debug, PartialEq, YaSerialize, YaDeserialize)]
-struct Page {
-    loc: Option<Url>,
+struct PageSerde {
+    #[yaserde(rename = "loc")]
+    url: Option<UrlSerde>,
     lastmod: Option<DateTime<Utc>>,
     #[yaserde(prefix = "xhtml")]
     meta: Option<Meta>,
 }
 
-#[derive(Debug, PartialEq, YaSerialize, YaDeserialize)]
-#[yaserde(namespace = "xhtml: http://www.w3.org/1999/xhtml")]
-struct Meta {
-    #[yaserde(attribute)]
-    name: String,
-    #[yaserde(attribute)]
-    content: String,
+impl From<&Page> for PageSerde {
+    fn from(page: &Page) -> Self {
+        Self {
+            url: page.url.as_ref().map(|url| UrlSerde(url.clone())),
+            lastmod: page.lastmod.as_ref().map(|lastmod| DateTime(lastmod.0)),
+            meta: page.meta.as_ref().cloned(),
+        }
+    }
 }
 
 impl yaserde::YaSerialize for DateTime<Utc> {
@@ -95,7 +181,7 @@ impl yaserde::YaDeserialize for DateTime<Utc> {
     }
 }
 
-impl yaserde::YaSerialize for Url {
+impl yaserde::YaSerialize for UrlSerde {
     fn serialize<W>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String>
     where
         W: std::io::Write,
@@ -129,7 +215,7 @@ impl yaserde::YaSerialize for Url {
     }
 }
 
-impl yaserde::YaDeserialize for Url {
+impl yaserde::YaDeserialize for UrlSerde {
     fn deserialize<R: std::io::Read>(
         reader: &mut yaserde::de::Deserializer<R>,
     ) -> Result<Self, String> {
@@ -137,7 +223,9 @@ impl yaserde::YaDeserialize for Url {
             match reader.next_event()? {
                 xml::reader::XmlEvent::StartElement { .. } => {}
                 xml::reader::XmlEvent::Characters(ref text_content) => {
-                    return Ok(Url(UrlUrl::parse(text_content).map_err(|e| e.to_string())?));
+                    return Ok(UrlSerde(
+                        Url::parse(text_content).map_err(|e| e.to_string())?,
+                    ));
                 }
                 _ => {
                     break;
@@ -148,18 +236,18 @@ impl yaserde::YaDeserialize for Url {
     }
 }
 
-async fn website_pages(website: UrlUrl) -> Result<Vec<Page>, String> {
+async fn website_pages(website: Url) -> Result<Vec<Page>, String> {
     let mut pages = vec![];
     let mut website: Website = Website::new(website.as_str());
 
     website.scrape().await;
 
     for page in website.get_pages().unwrap().iter() {
-        let url = UrlUrl::parse(page.get_url()).unwrap();
+        let url = Url::parse(page.get_url()).map_err(|e| e.to_string())?;
         let contents = page.get_html();
         let hash = md5::compute(contents);
         pages.push(Page {
-            loc: Some(Url(url)),
+            url: Some(url),
             lastmod: Some(DateTime(chrono::Utc::now())),
             meta: Some(Meta {
                 name: "auto_sitemap_md5_hash".to_string(),
@@ -171,7 +259,7 @@ async fn website_pages(website: UrlUrl) -> Result<Vec<Page>, String> {
     Ok(pages)
 }
 
-pub async fn produce_sitemap(website: UrlUrl) -> Result<Sitemap, String> {
+pub async fn produce_sitemap(website: Url) -> Result<Sitemap, String> {
     let pages = website_pages(website).await?;
     let sitemap = Sitemap { pages };
 
@@ -195,7 +283,7 @@ mod tests {
 
         let sitemap = Sitemap {
             pages: vec![Page {
-                loc: Some(Url(UrlUrl::parse("https://example.com").unwrap())),
+                url: Some(Url::parse("https://example.com").unwrap()),
                 lastmod: Some(DateTime(ChronoDateTime::<Utc>::from_utc(
                     chrono::NaiveDateTime::from_timestamp_opt(61, 0).unwrap(),
                     Utc,
@@ -207,12 +295,10 @@ mod tests {
             }],
         };
 
-        let yaserde_cfg = yaserde::ser::Config {
-            perform_indent: true,
-            ..Default::default()
-        };
-        let serialized = yaserde::ser::to_string_with_config(&sitemap, &yaserde_cfg).unwrap();
-        let deserialized: Sitemap = yaserde::de::from_str(str_representation).unwrap();
+        let mut buf = std::io::BufWriter::new(Vec::new());
+        sitemap.serialize(&mut buf).unwrap();
+        let serialized = String::from_utf8(buf.into_inner().unwrap()).unwrap();
+        let deserialized = Sitemap::deserialize(serialized.as_bytes()).unwrap();
 
         pretty_assertions::assert_eq!(serialized, str_representation);
         pretty_assertions::assert_eq!(deserialized, sitemap);
@@ -250,7 +336,7 @@ mod tests {
                 }
             });
 
-            let pages = website_pages(UrlUrl::parse("http://localhost:3000").unwrap())
+            let pages = website_pages(Url::parse("http://localhost:3000").unwrap())
                 .await
                 .unwrap();
 
@@ -258,16 +344,16 @@ mod tests {
             let _ = tx.send(());
 
             let correct_urls = vec![
-                UrlUrl::parse("http://localhost:3000/").unwrap(),
-                UrlUrl::parse("http://localhost:3000/a").unwrap(),
-                UrlUrl::parse("http://localhost:3000/b").unwrap(),
-                UrlUrl::parse("http://localhost:3000/c").unwrap(),
+                Url::parse("http://localhost:3000/").unwrap(),
+                Url::parse("http://localhost:3000/a").unwrap(),
+                Url::parse("http://localhost:3000/b").unwrap(),
+                Url::parse("http://localhost:3000/c").unwrap(),
                 // Shouldn't be reachable by crawling:
-                // UrlUrl::parse("http://localhost:3000/d").unwrap(),
+                // Url::parse("http://localhost:3000/d").unwrap(),
             ];
 
             for (page, correct_url) in pages.iter().zip(correct_urls.iter()) {
-                pretty_assertions::assert_eq!(page.loc, Some(Url(correct_url.clone())));
+                pretty_assertions::assert_eq!(page.url, Some(correct_url.clone()));
             }
         }
 
