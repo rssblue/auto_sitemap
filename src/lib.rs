@@ -51,6 +51,33 @@ impl Sitemap {
     pub fn sort_by_url(&mut self) {
         self.pages.sort_by(|a, b| a.url.cmp(&b.url));
     }
+
+    /// Ignores pages that are missing in the new sitemap.
+    /// Uses the old `lastmod` if the hash unchanged, otherwise uses the new `lastmod`.
+    pub fn combine_with_old_sitemap(&mut self, old_sitemap: &Sitemap) -> Result<(), String> {
+        // HashMap of old URLs and the corresponding `Page`.
+        let old_pages = old_sitemap
+            .pages
+            .iter()
+            .map(|page| (page.url.clone(), page))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        for page in self.pages.iter_mut() {
+            if let Some(old_page) = old_pages.get(&page.url) {
+                if let (Some(old_hash), Some(old_lastmod)) = (
+                    old_page.md5_hash.clone(),
+                    page.lastmod.as_ref().map(|lastmod| DateTime(lastmod.0)),
+                ) {
+                    if Some(old_hash) == page.md5_hash {
+                        page.lastmod = Some(old_lastmod);
+                        continue;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -313,14 +340,14 @@ mod tests {
         pretty_assertions::assert_eq!(deserialized, sitemap);
     }
 
-    mod website_urls {
+    mod sitemap {
         use super::*;
         use axum::response::Html;
         use axum::{routing::get, Router};
         use std::net::SocketAddr;
 
         #[tokio::test]
-        async fn test_website_pages() {
+        async fn test_produce_sitemap() {
             let app = Router::new()
                 .route("/", get(root))
                 .route("/a", get(a))
@@ -345,9 +372,10 @@ mod tests {
                 }
             });
 
-            let pages = website_pages(Url::parse("http://localhost:3000").unwrap())
+            let mut sitemap = produce_sitemap(Url::parse("http://localhost:3000").unwrap())
                 .await
                 .unwrap();
+            sitemap.sort_by_url();
 
             // Shut down the server...
             let _ = tx.send(());
@@ -361,7 +389,7 @@ mod tests {
                 // Url::parse("http://localhost:3000/d").unwrap(),
             ];
 
-            for (page, correct_url) in pages.iter().zip(correct_urls.iter()) {
+            for (page, correct_url) in sitemap.pages.iter().zip(correct_urls.iter()) {
                 pretty_assertions::assert_eq!(page.url, correct_url.clone());
             }
         }
