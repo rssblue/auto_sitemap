@@ -15,32 +15,24 @@ pub struct Sitemap {
     pages: Vec<Page>,
 }
 
-impl From<SitemapSerde> for Sitemap {
-    fn from(sitemap_serde: SitemapSerde) -> Self {
+impl TryFrom<SitemapSerde> for Sitemap {
+    type Error = String;
+    fn try_from(sitemap_serde: SitemapSerde) -> Result<Self, Self::Error> {
         let pages = sitemap_serde
             .pages
             .into_iter()
-            .map(|page| Page {
-                url: page.url.map(|url| url.0),
-                lastmod: page.lastmod,
-                meta: page.meta,
-            })
-            .collect();
-        Self { pages }
+            .map(|page| page.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { pages })
     }
 }
 
 impl Sitemap {
     pub fn deserialize<R: std::io::Read>(reader: R) -> Result<Self, String> {
-        let mut sitemap_serde: SitemapSerde = yaserde::de::from_reader(reader)
+        let sitemap_serde: SitemapSerde = yaserde::de::from_reader(reader)
             .map_err(|e| format!("failed to deserialize: {}", e))?;
-        let pages = sitemap_serde
-            .pages
-            .drain(..)
-            .map(|page| page.into())
-            .collect();
 
-        Ok(Self { pages })
+        Self::try_from(sitemap_serde)
     }
 
     pub fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), String> {
@@ -59,18 +51,33 @@ impl Sitemap {
 
 #[derive(Debug, PartialEq)]
 pub struct Page {
-    url: Option<Url>,
+    url: Url,
     lastmod: Option<DateTime<Utc>>,
-    meta: Option<Meta>,
+    md5_hash: Option<String>,
 }
 
-impl From<PageSerde> for Page {
-    fn from(page_serde: PageSerde) -> Self {
-        Self {
-            url: page_serde.url.map(|url| url.0),
+impl TryFrom<PageSerde> for Page {
+    type Error = String;
+
+    fn try_from(page_serde: PageSerde) -> Result<Self, Self::Error> {
+        let hash = match page_serde.meta {
+            Some(meta) => {
+                if meta.name == "auto_sitemap_md5_hash" && meta.content.len() == 32 {
+                    Some(meta.content)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
+        Ok(Self {
+            url: page_serde
+                .url
+                .ok_or_else(|| "page URL is missing".to_string())?
+                .0,
             lastmod: page_serde.lastmod,
-            meta: page_serde.meta,
-        }
+            md5_hash: hash,
+        })
     }
 }
 
@@ -116,10 +123,14 @@ struct PageSerde {
 
 impl From<&Page> for PageSerde {
     fn from(page: &Page) -> Self {
+        let meta = page.md5_hash.as_ref().map(|hash| Meta {
+            name: "auto_sitemap_md5_hash".to_string(),
+            content: hash.clone(),
+        });
         Self {
-            url: page.url.as_ref().map(|url| UrlSerde(url.clone())),
+            url: Some(UrlSerde(page.url.clone())),
             lastmod: page.lastmod.as_ref().map(|lastmod| DateTime(lastmod.0)),
-            meta: page.meta.as_ref().cloned(),
+            meta,
         }
     }
 }
@@ -247,12 +258,9 @@ async fn website_pages(website: Url) -> Result<Vec<Page>, String> {
         let contents = page.get_html();
         let hash = md5::compute(contents);
         pages.push(Page {
-            url: Some(url),
+            url,
             lastmod: Some(DateTime(chrono::Utc::now())),
-            meta: Some(Meta {
-                name: "auto_sitemap_md5_hash".to_string(),
-                content: format!("{:x}", hash),
-            }),
+            md5_hash: Some(format!("{:x}", hash)),
         });
     }
 
@@ -283,15 +291,12 @@ mod tests {
 
         let sitemap = Sitemap {
             pages: vec![Page {
-                url: Some(Url::parse("https://example.com").unwrap()),
+                url: Url::parse("https://example.com").unwrap(),
                 lastmod: Some(DateTime(ChronoDateTime::<Utc>::from_utc(
                     chrono::NaiveDateTime::from_timestamp_opt(61, 0).unwrap(),
                     Utc,
                 ))),
-                meta: Some(Meta {
-                    name: "auto_sitemap_md5_hash".into(),
-                    content: "0123456789abcdef0123456789abcdef".into(),
-                }),
+                md5_hash: Some("0123456789abcdef0123456789abcdef".into()),
             }],
         };
 
@@ -353,7 +358,7 @@ mod tests {
             ];
 
             for (page, correct_url) in pages.iter().zip(correct_urls.iter()) {
-                pretty_assertions::assert_eq!(page.url, Some(correct_url.clone()));
+                pretty_assertions::assert_eq!(page.url, correct_url.clone());
             }
         }
 
