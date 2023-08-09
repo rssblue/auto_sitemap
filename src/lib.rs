@@ -28,6 +28,39 @@ impl TryFrom<SitemapSerde> for Sitemap {
 }
 
 impl Sitemap {
+    /// Assumes that the URL is domain name.
+    pub async fn try_from_url(website_url: Url) -> Result<Self, String> {
+        // let url = Url::parse(&url_str).map_err(|e| format!("failed to parse URL: {}", e))?;
+        let pages = Self::website_pages(website_url).await?;
+        Ok(Self { pages })
+    }
+
+    /// Assumes that the string is domain name URL.
+    pub async fn try_from_url_str(url_str: &str) -> Result<Self, String> {
+        let url = Url::parse(url_str).map_err(|e| format!("failed to parse URL: {}", e))?;
+        Self::try_from_url(url).await
+    }
+
+    async fn website_pages(website_url: Url) -> Result<Vec<Page>, String> {
+        let mut pages = vec![];
+        let mut website: Website = Website::new(website_url.as_str());
+
+        website.scrape().await;
+
+        for page in website.get_pages().unwrap().iter() {
+            let url = Url::parse(page.get_url()).map_err(|e| e.to_string())?;
+            let contents = page.get_html();
+            let hash = md5::compute(contents);
+            pages.push(Page {
+                url,
+                lastmod: Some(DateTime(chrono::Utc::now())),
+                md5_hash: Some(format!("{:x}", hash)),
+            });
+        }
+
+        Ok(pages)
+    }
+
     pub fn deserialize<R: std::io::Read>(reader: R) -> Result<Self, String> {
         let sitemap_serde: SitemapSerde = yaserde::de::from_reader(reader)
             .map_err(|e| format!("failed to deserialize: {}", e))?;
@@ -278,33 +311,6 @@ impl yaserde::YaDeserialize for UrlSerde {
     }
 }
 
-async fn website_pages(website: Url) -> Result<Vec<Page>, String> {
-    let mut pages = vec![];
-    let mut website: Website = Website::new(website.as_str());
-
-    website.scrape().await;
-
-    for page in website.get_pages().unwrap().iter() {
-        let url = Url::parse(page.get_url()).map_err(|e| e.to_string())?;
-        let contents = page.get_html();
-        let hash = md5::compute(contents);
-        pages.push(Page {
-            url,
-            lastmod: Some(DateTime(chrono::Utc::now())),
-            md5_hash: Some(format!("{:x}", hash)),
-        });
-    }
-
-    Ok(pages)
-}
-
-pub async fn produce_sitemap(website: Url) -> Result<Sitemap, String> {
-    let pages = website_pages(website).await?;
-    let sitemap = Sitemap { pages };
-
-    Ok(sitemap)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,7 +378,7 @@ mod tests {
                 }
             });
 
-            let mut sitemap = produce_sitemap(Url::parse("http://localhost:3000").unwrap())
+            let mut sitemap = Sitemap::try_from_url_str("http://localhost:3000")
                 .await
                 .unwrap();
             sitemap.sort_by_url();
