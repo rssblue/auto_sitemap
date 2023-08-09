@@ -47,6 +47,10 @@ impl Sitemap {
 
         Ok(())
     }
+
+    pub fn sort_by_url(&mut self) {
+        self.pages.sort_by(|a, b| a.url.cmp(&b.url));
+    }
 }
 
 #[derive(Debug, PartialEq)]
