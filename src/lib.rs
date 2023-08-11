@@ -353,7 +353,24 @@ mod tests {
         use std::net::SocketAddr;
 
         #[tokio::test]
-        async fn test_produce_sitemap() {
+        async fn test_generation_and_update() {
+            let new_sitemap = generate_sitemap().await.unwrap();
+
+            let correct_urls = vec![
+                Url::parse("http://localhost:3000/").unwrap(),
+                Url::parse("http://localhost:3000/a").unwrap(),
+                Url::parse("http://localhost:3000/b").unwrap(),
+                Url::parse("http://localhost:3000/c").unwrap(),
+                // Shouldn't be reachable by crawling:
+                // Url::parse("http://localhost:3000/d").unwrap(),
+            ];
+
+            for (page, correct_url) in new_sitemap.pages.iter().zip(correct_urls.iter()) {
+                pretty_assertions::assert_eq!(page.url, correct_url.clone());
+            }
+        }
+
+        async fn generate_sitemap() -> Result<Sitemap, String> {
             let app = Router::new()
                 .route("/", get(root))
                 .route("/a", get(a))
@@ -378,26 +395,13 @@ mod tests {
                 }
             });
 
-            let mut sitemap = Sitemap::try_from_url_str("http://localhost:3000")
-                .await
-                .unwrap();
+            let mut sitemap = Sitemap::try_from_url_str("http://localhost:3000").await?;
             sitemap.sort_by_url();
 
             // Shut down the server...
             let _ = tx.send(());
 
-            let correct_urls = vec![
-                Url::parse("http://localhost:3000/").unwrap(),
-                Url::parse("http://localhost:3000/a").unwrap(),
-                Url::parse("http://localhost:3000/b").unwrap(),
-                Url::parse("http://localhost:3000/c").unwrap(),
-                // Shouldn't be reachable by crawling:
-                // Url::parse("http://localhost:3000/d").unwrap(),
-            ];
-
-            for (page, correct_url) in sitemap.pages.iter().zip(correct_urls.iter()) {
-                pretty_assertions::assert_eq!(page.url, correct_url.clone());
-            }
+            Ok(sitemap)
         }
 
         async fn root() -> Html<&'static str> {
