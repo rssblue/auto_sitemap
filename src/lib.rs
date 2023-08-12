@@ -30,7 +30,6 @@ impl TryFrom<SitemapSerde> for Sitemap {
 impl Sitemap {
     /// Assumes that the URL is domain name.
     pub async fn try_from_url(website_url: Url) -> Result<Self, String> {
-        // let url = Url::parse(&url_str).map_err(|e| format!("failed to parse URL: {}", e))?;
         let pages = Self::website_pages(website_url).await?;
         Ok(Self { pages })
     }
