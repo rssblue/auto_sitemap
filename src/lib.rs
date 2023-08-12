@@ -98,7 +98,7 @@ impl Sitemap {
             if let Some(old_page) = old_pages.get(&page.url) {
                 if let (Some(old_hash), Some(old_lastmod)) = (
                     old_page.md5_hash.clone(),
-                    page.lastmod.as_ref().map(|lastmod| DateTime(lastmod.0)),
+                    old_page.lastmod.as_ref().map(|x| DateTime(x.0)),
                 ) {
                     if Some(old_hash) == page.md5_hash {
                         page.lastmod = Some(old_lastmod);
@@ -353,7 +353,9 @@ mod tests {
 
         #[tokio::test]
         async fn test_generation_and_update() {
-            let new_sitemap = generate_sitemap().await.unwrap();
+            let start_time = chrono::Utc::now();
+
+            let mut new_sitemap = generate_sitemap().await.unwrap();
 
             let correct_urls = vec![
                 Url::parse("http://localhost:3000/").unwrap(),
@@ -366,6 +368,60 @@ mod tests {
 
             for (page, correct_url) in new_sitemap.pages.iter().zip(correct_urls.iter()) {
                 pretty_assertions::assert_eq!(page.url, correct_url.clone());
+            }
+
+            let old_sitemap_str = r#"<?xml version="1.0" encoding="utf-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>http://localhost:3000/</loc>
+        <lastmod>2020-01-05T00:00:00Z</lastmod>
+        <xhtml:meta name="auto_sitemap_md5_hash" content="5c3e45e7c1558d67050cb19c0dc390fd" />
+        }
+    </url>
+    <url>
+        <loc>http://localhost:3000/a</loc>
+        <lastmod>2020-01-06T00:00:00Z</lastmod>
+    </url>
+    <url>
+        <loc>http://localhost:3000/b</loc>
+        <lastmod>2020-01-07T00:00:00Z</lastmod>
+        <xhtml:meta name="auto_sitemap_md5_hash" content="0123456789abcdef0123456789abcdef" />
+    </url>
+    <url>
+        <loc>http://localhost:3000/old-nonexistent-page-with-hash</loc>
+        <lastmod>2020-01-08T00:00:00Z</lastmod>
+        <xhtml:meta name="auto_sitemap_md5_hash" content="0123456789abcdef0123456789abcdef" />
+    </url>
+    <url>
+        <loc>http://localhost:3000/old-nonexistent-page-without-hash</loc>
+        <lastmod>2020-01-09T00:00:00Z</lastmod>
+    </url>
+</urlset>"#;
+
+            let old_sitemap = Sitemap::deserialize(old_sitemap_str.as_bytes()).unwrap();
+
+            new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
+
+            let updated_urls = vec![
+                Url::parse("http://localhost:3000/a").unwrap(),
+                Url::parse("http://localhost:3000/b").unwrap(),
+                Url::parse("http://localhost:3000/c").unwrap(),
+            ];
+            for (page, correct_url) in new_sitemap.pages.iter().zip(correct_urls.iter()) {
+                pretty_assertions::assert_eq!(page.url, correct_url.clone());
+                let lastmod = page
+                    .lastmod
+                    .as_ref()
+                    .map(|lastmod| DateTime(lastmod.0))
+                    .unwrap();
+
+                // Lastmod should be updated to less than 1 second after `start_time`.
+                if updated_urls.contains(&page.url) {
+                    assert!(lastmod.0 > start_time);
+                    assert!(lastmod.0 < start_time + chrono::Duration::seconds(1));
+                } else {
+                    assert!(lastmod.0 < start_time);
+                }
             }
         }
 
