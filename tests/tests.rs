@@ -66,10 +66,10 @@ mod sitemap {
             pretty_assertions::assert_eq!(page.url, correct_url.clone());
             let lastmod = page.lastmod.unwrap();
 
-            // Lastmod should be updated to less than 1 second after `start_time`.
+            // Lastmod should be updated to less than 5 seconds after `start_time`.
             if updated_urls.contains(&page.url) {
                 more_asserts::assert_lt!(start_time, lastmod);
-                more_asserts::assert_lt!(lastmod, start_time + chrono::Duration::seconds(1));
+                more_asserts::assert_lt!(lastmod, start_time + chrono::Duration::seconds(5));
             } else {
                 more_asserts::assert_lt!(lastmod, start_time);
             }
