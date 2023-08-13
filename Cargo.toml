@@ -17,3 +17,6 @@ axum = "0.6.20"
 more-asserts = "0.3.1"
 pretty_assertions = "1.4.0"
 tokio = "1.31.0"
+
+[lib]
+doctest = false
