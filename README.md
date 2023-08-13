@@ -12,7 +12,7 @@ cargo add auto_sitemap
 
 ```rust
 // Crawls https://example.com
-let mut new_sitemap = auto_sitemap::Sitemap::try_from_url_str("https://example.com")
+let mut new_sitemap = auto_sitemap::Sitemap::generate_by_crawling("https://example.com")
     .await
     .unwrap();
 

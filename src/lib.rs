@@ -16,8 +16,13 @@ pub struct Sitemap {
 }
 
 impl Sitemap {
-    /// Assumes that the URL is domain name.
-    pub async fn try_from_url(website_url: Url) -> Result<Self, String> {
+    /// Generates sitemap by crawling the website.
+    pub async fn generate_by_crawling(website_url: impl AsRef<str>) -> Result<Self, String> {
+        let website_url = Url::parse(website_url.as_ref()).map_err(|e| e.to_string())?;
+        if website_url.scheme() != "http" && website_url.scheme() != "https" {
+            return Err("URL should start with http:// or https://".to_string());
+        }
+
         let mut pages = vec![];
         let mut website: Website = Website::new(website_url.as_str());
 
@@ -40,12 +45,6 @@ impl Sitemap {
         }
 
         Ok(Self { pages })
-    }
-
-    /// Assumes that the string is domain name URL.
-    pub async fn try_from_url_str(url_str: &str) -> Result<Self, String> {
-        let url = Url::parse(url_str).map_err(|e| format!("failed to parse URL: {}", e))?;
-        Self::try_from_url(url).await
     }
 
     /// Deserializes from XML sitemap.

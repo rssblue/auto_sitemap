@@ -110,7 +110,7 @@ mod sitemap {
             }
         });
 
-        let mut sitemap = Sitemap::try_from_url_str("http://localhost:3000").await?;
+        let mut sitemap = Sitemap::generate_by_crawling("http://localhost:3000").await?;
         sitemap.sort_by_url();
 
         // Shut down the server...
