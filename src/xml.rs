@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use url::Url;
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
-use crate::{Meta, Page, Sitemap};
+use crate::{Page, Sitemap};
 
 #[derive(Debug, PartialEq)]
 pub struct DateTimeSerde<Tz: chrono::TimeZone>(pub DateTime<Tz>);
@@ -220,4 +220,13 @@ impl yaserde::YaDeserialize for UrlSerde {
         }
         Err("Unable to parse".to_string())
     }
+}
+
+#[derive(Debug, PartialEq, Clone, YaSerialize, YaDeserialize)]
+#[yaserde(namespace = "xhtml: http://www.w3.org/1999/xhtml")]
+pub struct Meta {
+    #[yaserde(attribute)]
+    name: String,
+    #[yaserde(attribute)]
+    content: String,
 }

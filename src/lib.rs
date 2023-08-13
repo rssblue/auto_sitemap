@@ -4,7 +4,6 @@
 use chrono::{DateTime, Utc};
 use spider::website::Website;
 use url::Url;
-use yaserde_derive::{YaDeserialize, YaSerialize};
 
 mod xml;
 use crate::xml::SitemapSerde;
@@ -108,16 +107,4 @@ pub struct Page {
     /// MD5 hash of the page contents.
     /// Used to detect changes.
     pub md5_hash: Option<String>,
-}
-
-/// XHTML meta tag.
-#[derive(Debug, PartialEq, Clone, YaSerialize, YaDeserialize)]
-#[yaserde(namespace = "xhtml: http://www.w3.org/1999/xhtml")]
-pub struct Meta {
-    /// Name attribute.
-    #[yaserde(attribute)]
-    pub name: String,
-    /// Content attribute.
-    #[yaserde(attribute)]
-    pub content: String,
 }
