@@ -23,7 +23,12 @@ impl Sitemap {
 
         website.scrape().await;
 
-        for page in website.get_pages().unwrap().iter() {
+        let spider_pages = match website.get_pages() {
+            Some(spider_pages) => spider_pages,
+            None => return Err("failed to get pages".to_string()),
+        };
+
+        for page in spider_pages.iter() {
             let url = Url::parse(page.get_url()).map_err(|e| e.to_string())?;
             let contents = page.get_html().trim().replace("\r\n", "\n"); // normalize line endings
             let hash = md5::compute(contents);
