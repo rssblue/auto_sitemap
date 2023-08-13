@@ -1,10 +1,10 @@
-use chrono::{DateTime as ChronoDateTime, Utc};
+use chrono::{DateTime, Utc};
 use spider::website::Website;
 use url::Url;
 use yaserde_derive::{YaDeserialize, YaSerialize};
 
 #[derive(Debug, PartialEq)]
-pub struct DateTime<Tz: chrono::TimeZone>(pub ChronoDateTime<Tz>);
+pub struct DateTimeSerde<Tz: chrono::TimeZone>(pub DateTime<Tz>);
 
 #[derive(Debug, PartialEq, Clone)]
 struct UrlSerde(Url);
@@ -52,7 +52,7 @@ impl Sitemap {
             let hash = md5::compute(contents);
             pages.push(Page {
                 url,
-                lastmod: Some(DateTime(chrono::Utc::now())),
+                lastmod: Some(chrono::Utc::now()),
                 md5_hash: Some(format!("{:x}", hash)),
             });
         }
@@ -98,7 +98,7 @@ impl Sitemap {
             if let Some(old_page) = old_pages.get(&page.url) {
                 if let (Some(old_hash), Some(old_lastmod)) = (
                     old_page.md5_hash.clone(),
-                    old_page.lastmod.as_ref().map(|x| DateTime(x.0)),
+                    old_page.lastmod.as_ref().copied(),
                 ) {
                     if Some(old_hash) == page.md5_hash {
                         page.lastmod = Some(old_lastmod);
@@ -138,7 +138,7 @@ impl TryFrom<PageSerde> for Page {
                 .url
                 .ok_or_else(|| "page URL is missing".to_string())?
                 .0,
-            lastmod: page_serde.lastmod,
+            lastmod: page_serde.lastmod.as_ref().map(|lastmod| lastmod.0),
             md5_hash: hash,
         })
     }
@@ -179,7 +179,7 @@ impl From<&Sitemap> for SitemapSerde {
 struct PageSerde {
     #[yaserde(rename = "loc")]
     url: Option<UrlSerde>,
-    lastmod: Option<DateTime<Utc>>,
+    lastmod: Option<DateTimeSerde<Utc>>,
     #[yaserde(prefix = "xhtml")]
     meta: Option<Meta>,
 }
@@ -192,13 +192,13 @@ impl From<&Page> for PageSerde {
         });
         Self {
             url: Some(UrlSerde(page.url.clone())),
-            lastmod: page.lastmod.as_ref().map(|lastmod| DateTime(lastmod.0)),
+            lastmod: page.lastmod.as_ref().map(|lastmod| DateTimeSerde(*lastmod)),
             meta,
         }
     }
 }
 
-impl yaserde::YaSerialize for DateTime<Utc> {
+impl yaserde::YaSerialize for DateTimeSerde<Utc> {
     fn serialize<W>(&self, writer: &mut yaserde::ser::Serializer<W>) -> Result<(), String>
     where
         W: std::io::Write,
@@ -234,7 +234,7 @@ impl yaserde::YaSerialize for DateTime<Utc> {
     }
 }
 
-impl yaserde::YaDeserialize for DateTime<Utc> {
+impl yaserde::YaDeserialize for DateTimeSerde<Utc> {
     fn deserialize<R: std::io::Read>(
         reader: &mut yaserde::de::Deserializer<R>,
     ) -> Result<Self, String> {
@@ -242,9 +242,9 @@ impl yaserde::YaDeserialize for DateTime<Utc> {
             match reader.next_event()? {
                 xml::reader::XmlEvent::StartElement { .. } => {}
                 xml::reader::XmlEvent::Characters(ref text_content) => {
-                    return ChronoDateTime::parse_from_rfc3339(text_content)
+                    return DateTime::parse_from_rfc3339(text_content)
                         .map_err(|e| format!("failed to deserialize `{text_content}`: {e}"))
-                        .map(|dt| DateTime(dt.with_timezone(&Utc)));
+                        .map(|dt| DateTimeSerde(dt.with_timezone(&Utc)));
                 }
                 _ => {
                     break;

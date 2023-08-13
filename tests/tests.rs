@@ -1,5 +1,5 @@
 use auto_sitemap::*;
-use chrono::{DateTime as ChronoDateTime, Utc};
+use chrono::{DateTime, Utc};
 use url::Url;
 
 #[test]
@@ -16,10 +16,10 @@ fn test_serialize_and_deserialize() {
     let sitemap = Sitemap {
         pages: vec![Page {
             url: Url::parse("https://example.com").unwrap(),
-            lastmod: Some(DateTime(ChronoDateTime::<Utc>::from_utc(
+            lastmod: Some(DateTime::<Utc>::from_utc(
                 chrono::NaiveDateTime::from_timestamp_opt(61, 0).unwrap(),
                 Utc,
-            ))),
+            )),
             md5_hash: Some("0123456789abcdef0123456789abcdef".into()),
         }],
     };
@@ -97,18 +97,14 @@ mod sitemap {
         ];
         for (page, correct_url) in new_sitemap.pages.iter().zip(correct_urls.iter()) {
             pretty_assertions::assert_eq!(page.url, correct_url.clone());
-            let lastmod = page
-                .lastmod
-                .as_ref()
-                .map(|lastmod| DateTime(lastmod.0))
-                .unwrap();
+            let lastmod = page.lastmod.unwrap();
 
             // Lastmod should be updated to less than 1 second after `start_time`.
             if updated_urls.contains(&page.url) {
-                assert!(lastmod.0 > start_time);
-                assert!(lastmod.0 < start_time + chrono::Duration::seconds(1));
+                assert!(lastmod > start_time);
+                assert!(lastmod < start_time + chrono::Duration::seconds(1));
             } else {
-                assert!(lastmod.0 < start_time);
+                assert!(lastmod < start_time);
             }
         }
     }
