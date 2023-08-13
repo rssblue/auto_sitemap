@@ -60,7 +60,7 @@ mod sitemap {
         }
 
         old_sitemap.update_domain("http://localhost:3000").unwrap();
-        new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
+        let info = new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
         new_sitemap.update_domain("https://example.com").unwrap();
 
         let end_time = chrono::Utc::now();
@@ -89,6 +89,20 @@ mod sitemap {
                 more_asserts::assert_lt!(lastmod, start_time);
             }
         }
+
+        let correct_info = UpdateInfo {
+            new_pages: vec![Url::parse("http://localhost:3000/c").unwrap()],
+            removed_pages: vec![
+                Url::parse("http://localhost:3000/old-nonexistent-page-with-hash").unwrap(),
+                Url::parse("http://localhost:3000/old-nonexistent-page-without-hash").unwrap(),
+            ],
+            unchanged_pages: vec![Url::parse("http://localhost:3000/").unwrap()],
+            updated_pages: vec![
+                Url::parse("http://localhost:3000/a").unwrap(),
+                Url::parse("http://localhost:3000/b").unwrap(),
+            ],
+        };
+        pretty_assertions::assert_eq!(info, correct_info);
     }
 
     async fn obtain_sitemaps() -> Result<(Sitemap, Sitemap), String> {

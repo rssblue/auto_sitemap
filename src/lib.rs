@@ -112,28 +112,50 @@ impl Sitemap {
 
     /// Ignores pages that are missing in the new sitemap.
     /// Uses the old `lastmod` if the hash unchanged, otherwise uses the new `lastmod`.
-    pub fn combine_with_old_sitemap(&mut self, old_sitemap: &Sitemap) -> Result<(), String> {
+    pub fn combine_with_old_sitemap(
+        &mut self,
+        old_sitemap: &Sitemap,
+    ) -> Result<UpdateInfo, String> {
+        let mut info = UpdateInfo {
+            new_pages: vec![],
+            updated_pages: vec![],
+            unchanged_pages: vec![],
+            removed_pages: vec![],
+        };
+
         // HashMap of old URLs and the corresponding `Page`.
-        let old_pages = old_sitemap
+        let mut old_pages = old_sitemap
             .pages
             .iter()
             .map(|page| (page.url.clone(), page))
             .collect::<std::collections::HashMap<_, _>>();
 
         for page in self.pages.iter_mut() {
-            if let Some(old_page) = old_pages.get(&page.url) {
-                if let (Some(old_hash), Some(old_lastmod)) =
-                    (old_page.md5_hash.clone(), old_page.lastmod)
-                {
-                    if Some(old_hash) == page.md5_hash {
-                        page.lastmod = Some(old_lastmod);
-                        continue;
+            match old_pages.remove(&page.url) {
+                Some(old_page) => {
+                    if let (Some(old_hash), Some(old_lastmod)) =
+                        (old_page.md5_hash.clone(), old_page.lastmod)
+                    {
+                        if Some(old_hash) == page.md5_hash {
+                            page.lastmod = Some(old_lastmod);
+                            info.unchanged_pages.push(page.url.clone());
+                            continue;
+                        } else {
+                            info.updated_pages.push(page.url.clone());
+                        }
+                    } else {
+                        info.updated_pages.push(page.url.clone());
                     }
                 }
+                None => info.new_pages.push(page.url.clone()),
             }
         }
 
-        Ok(())
+        info.removed_pages = old_pages.keys().cloned().collect();
+
+        info.sort();
+
+        Ok(info)
     }
 
     /// Updates domain of the website for which the sitemap is generated.
@@ -173,4 +195,27 @@ pub struct Page {
     /// MD5 hash of the page contents.
     /// Used to detect changes.
     pub md5_hash: Option<String>,
+}
+
+/// Information returned when combining with old sitemap.
+#[derive(Debug, PartialEq)]
+pub struct UpdateInfo {
+    /// URLs of new pages.
+    pub new_pages: Vec<Url>,
+    /// URLs of updated pages.
+    pub updated_pages: Vec<Url>,
+    /// URLs of unchanged pages.
+    pub unchanged_pages: Vec<Url>,
+    /// URLs of removed pages.
+    pub removed_pages: Vec<Url>,
+}
+
+impl UpdateInfo {
+    /// Sorts URLs.
+    fn sort(&mut self) {
+        self.new_pages.sort();
+        self.updated_pages.sort();
+        self.unchanged_pages.sort();
+        self.removed_pages.sort();
+    }
 }
