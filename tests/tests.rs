@@ -4,7 +4,7 @@ use url::Url;
 
 #[test]
 fn test_serialize_and_deserialize() {
-    let str_representation = include_str!("data/simple-sitemap.xml").trim_end();
+    let str_representation = include_str!("data/simple-sitemap.xml").trim();
 
     let sitemap = Sitemap {
         pages: vec![Page {
