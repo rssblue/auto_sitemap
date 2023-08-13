@@ -57,6 +57,8 @@ mod sitemap {
 
         new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
 
+        let end_time = chrono::Utc::now();
+
         let updated_urls = vec![
             Url::parse("http://localhost:3000/a").unwrap(),
             Url::parse("http://localhost:3000/b").unwrap(),
@@ -66,10 +68,9 @@ mod sitemap {
             pretty_assertions::assert_eq!(page.url, correct_url.clone());
             let lastmod = page.lastmod.unwrap();
 
-            // Lastmod should be updated to less than 5 seconds after `start_time`.
             if updated_urls.contains(&page.url) {
                 more_asserts::assert_lt!(start_time, lastmod);
-                more_asserts::assert_lt!(lastmod, start_time + chrono::Duration::seconds(5));
+                more_asserts::assert_lt!(lastmod, end_time);
             } else {
                 more_asserts::assert_lt!(lastmod, start_time);
             }
