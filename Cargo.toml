@@ -1,7 +1,13 @@
 [package]
-name = "auto_sitemap"
-version = "0.1.0"
+authors = ["RSS Blue", "Dovydas Joksas"]
+categories = ["parsing"]
 edition = "2021"
+keywords = ["sitemap", "xml"]
+license = "MIT OR Apache-2.0"
+name = "auto_sitemap"
+readme = "README.md"
+repository = "https://github.com/rssblue/auto_sitemap"
+version = "0.1.0"
 
 [dependencies]
 chrono = "0.4.26"

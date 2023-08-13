@@ -45,5 +45,5 @@ println!("{}", String::from_utf8(buf.into_inner().unwrap()).unwrap());
 ## How does it work?
 
 `auto_sitemap` crawls your website.
-For each dicovered URL, it stores it in the sitemap together with the hash of the contents of that page.
-When the sitemap is generated the next time, it checks whether the hash for a particular page has changed; if yes, the `lastmod` of the page is updated to present.
+Each discovered URL and the hash of the contents of the corresponding page are stored in the sitemap.
+When the sitemap is generated the next time, it checks whether the hash for a particular page has changed; if yes, the `lastmod` of the page is updated to present time.
