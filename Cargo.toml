@@ -1,6 +1,7 @@
 [package]
 authors = ["RSS Blue", "Dovydas Joksas"]
 categories = ["parsing"]
+description = "Sitemaps with automatically updated lastmods."
 edition = "2021"
 keywords = ["sitemap", "xml"]
 license = "MIT OR Apache-2.0"
