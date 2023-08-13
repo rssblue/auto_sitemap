@@ -7,6 +7,6 @@
     <xhtml:meta name=" auto_sitemap_md5_hash  " content="0123456789abcdef0123456789abcdef
       " />
     <xhtml:meta name="author" content="Alice" />
-    <xhtml:meta name="keywords" content="keyword1,keyword2,keyword3" />
+    <xhtml:link rel="index" href="https://example.com/" />
   </url>
 </urlset>
