@@ -1,3 +1,6 @@
+#![deny(missing_docs)]
+#![doc = include_str!("../README.md")]
+
 use chrono::{DateTime, Utc};
 use spider::website::Website;
 use url::Url;
@@ -9,6 +12,7 @@ use crate::xml::SitemapSerde;
 /// Sitemap of the website.
 #[derive(Debug, PartialEq)]
 pub struct Sitemap {
+    /// Pages of the website.
     pub pages: Vec<Page>,
 }
 
@@ -40,6 +44,7 @@ impl Sitemap {
         Self::try_from_url(url).await
     }
 
+    /// Deserializes from XML sitemap.
     pub fn deserialize<R: std::io::Read>(reader: R) -> Result<Self, String> {
         let sitemap_serde: SitemapSerde = yaserde::de::from_reader(reader)
             .map_err(|e| format!("failed to deserialize: {}", e))?;
@@ -47,6 +52,7 @@ impl Sitemap {
         Self::try_from(sitemap_serde)
     }
 
+    /// Serializes to XML sitemap.
     pub fn serialize<W: std::io::Write>(&self, writer: W) -> Result<(), String> {
         let sitemap_serde: SitemapSerde = self.into();
 
@@ -60,6 +66,7 @@ impl Sitemap {
         Ok(())
     }
 
+    /// Sorts pages by URL.
     pub fn sort_by_url(&mut self) {
         self.pages.sort_by(|a, b| a.url.cmp(&b.url));
     }
@@ -91,18 +98,26 @@ impl Sitemap {
     }
 }
 
+/// Page of the website.
 #[derive(Debug, PartialEq)]
 pub struct Page {
+    /// Page URL.
     pub url: Url,
+    /// Last modification date.
     pub lastmod: Option<DateTime<Utc>>,
+    /// MD5 hash of the page contents.
+    /// Used to detect changes.
     pub md5_hash: Option<String>,
 }
 
+/// XHTML meta tag.
 #[derive(Debug, PartialEq, Clone, YaSerialize, YaDeserialize)]
 #[yaserde(namespace = "xhtml: http://www.w3.org/1999/xhtml")]
 pub struct Meta {
+    /// Name attribute.
     #[yaserde(attribute)]
     pub name: String,
+    /// Content attribute.
     #[yaserde(attribute)]
     pub content: String,
 }
