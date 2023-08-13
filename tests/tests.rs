@@ -38,8 +38,6 @@ mod sitemap {
 
         let mut new_sitemap = generate_sitemap().await.unwrap();
 
-        println!("New sitemap: {:#?}", new_sitemap);
-
         let correct_urls = vec![
             Url::parse("http://localhost:3000/").unwrap(),
             Url::parse("http://localhost:3000/a").unwrap(),
