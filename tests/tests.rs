@@ -22,10 +22,16 @@ fn test_serialize_and_deserialize() {
     let mut buf = std::io::BufWriter::new(Vec::new());
     sitemap.serialize(&mut buf).unwrap();
     let serialized = String::from_utf8(buf.into_inner().unwrap()).unwrap();
-    let deserialized = Sitemap::deserialize(serialized.as_bytes()).unwrap();
+    let deserialized_from_rust = Sitemap::deserialize(serialized.as_bytes()).unwrap();
+    let deserialized_from_original = Sitemap::deserialize(str_representation.as_bytes()).unwrap();
 
-    pretty_assertions::assert_eq!(serialized, str_representation);
-    pretty_assertions::assert_eq!(deserialized, sitemap);
+    let str_representation_trimmed = include_str!("data/simple-sitemap-trimmed.xml")
+        .trim()
+        .replace("\r\n", "\n");
+
+    pretty_assertions::assert_eq!(deserialized_from_original, sitemap);
+    pretty_assertions::assert_eq!(serialized, str_representation_trimmed);
+    pretty_assertions::assert_eq!(deserialized_from_rust, sitemap);
 }
 
 mod sitemap {

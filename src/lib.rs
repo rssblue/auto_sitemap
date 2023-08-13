@@ -44,6 +44,7 @@ impl Sitemap {
     }
 
     /// Deserializes from XML sitemap.
+    /// Additional fields are ignored.
     pub fn deserialize<R: std::io::Read>(reader: R) -> Result<Self, String> {
         let sitemap_serde: SitemapSerde = yaserde::de::from_reader(reader)
             .map_err(|e| format!("failed to deserialize: {}", e))?;

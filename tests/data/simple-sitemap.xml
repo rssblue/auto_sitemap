@@ -3,6 +3,10 @@
   <url>
     <loc>https://example.com/</loc>
     <lastmod>1970-01-01T00:01:01Z</lastmod>
-    <xhtml:meta name="auto_sitemap_md5_hash" content="0123456789abcdef0123456789abcdef" />
+    <xhtml:meta name="description" content="This is site description." />
+    <xhtml:meta name=" auto_sitemap_md5_hash  " content="0123456789abcdef0123456789abcdef
+      " />
+    <xhtml:meta name="author" content="Alice" />
+    <xhtml:meta name="keywords" content="keyword1,keyword2,keyword3" />
   </url>
 </urlset>

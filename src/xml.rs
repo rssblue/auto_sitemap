@@ -45,7 +45,7 @@ pub struct PageSerde {
     pub url: Option<UrlSerde>,
     pub lastmod: Option<DateTimeSerde<Utc>>,
     #[yaserde(prefix = "xhtml")]
-    pub meta: Option<Meta>,
+    pub meta: Vec<Meta>,
 }
 
 impl From<&Sitemap> for SitemapSerde {
@@ -80,7 +80,7 @@ impl From<&Page> for PageSerde {
         Self {
             url: Some(UrlSerde(page.url.clone())),
             lastmod: page.lastmod.map(|lastmod| lastmod.into()),
-            meta,
+            meta: meta.into_iter().collect(),
         }
     }
 }
@@ -89,16 +89,15 @@ impl TryFrom<PageSerde> for Page {
     type Error = String;
 
     fn try_from(page_serde: PageSerde) -> Result<Self, Self::Error> {
-        let hash = match page_serde.meta {
-            Some(meta) => {
-                if meta.name == "auto_sitemap_md5_hash" && meta.content.len() == 32 {
-                    Some(meta.content)
-                } else {
-                    None
-                }
+        let hash = page_serde.meta.into_iter().find_map(|meta| {
+            let name = meta.name.trim();
+            let content = meta.content.trim();
+            if name == "auto_sitemap_md5_hash" && content.len() == 32 {
+                Some(content.to_string())
+            } else {
+                None
             }
-            None => None,
-        };
+        });
         Ok(Self {
             url: page_serde
                 .url
