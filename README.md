@@ -1,6 +1,6 @@
 # auto sitemap
 
-Generate and update your website's sitemap based on when individual pages were updated.
+Keep your website's [sitemap](https://en.wikipedia.org/wiki/Sitemaps) up to date by tracking changes in individual pages.
 
 ## Install
 
@@ -25,7 +25,7 @@ let old_sitemap = auto_sitemap::Sitemap::import("https://example.com/sitemap.xml
 // If a hash of a page is different, its `lastmod` value is updated.
 new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
 
-// Serialize the sitemap to a string.
+// Serializes the sitemap to a string.
 let mut buf = std::io::BufWriter::new(Vec::new());
 new_sitemap.serialize(&mut buf).unwrap();
 println!("{}", String::from_utf8(buf.into_inner().unwrap()).unwrap());
