@@ -4,14 +4,7 @@ use url::Url;
 
 #[test]
 fn test_serialize_and_deserialize() {
-    let str_representation = r#"<?xml version="1.0" encoding="utf-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <url>
-    <loc>https://example.com/</loc>
-    <lastmod>1970-01-01T00:01:01Z</lastmod>
-    <xhtml:meta name="auto_sitemap_md5_hash" content="0123456789abcdef0123456789abcdef" />
-  </url>
-</urlset>"#;
+    let str_representation = include_str!("data/simple-sitemap.xml").trim_end();
 
     let sitemap = Sitemap {
         pages: vec![Page {
@@ -45,6 +38,8 @@ mod sitemap {
 
         let mut new_sitemap = generate_sitemap().await.unwrap();
 
+        println!("New sitemap: {:#?}", new_sitemap);
+
         let correct_urls = vec![
             Url::parse("http://localhost:3000/").unwrap(),
             Url::parse("http://localhost:3000/a").unwrap(),
@@ -58,33 +53,7 @@ mod sitemap {
             pretty_assertions::assert_eq!(page.url, correct_url.clone());
         }
 
-        let old_sitemap_str = r#"<?xml version="1.0" encoding="utf-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-    <url>
-        <loc>http://localhost:3000/</loc>
-        <lastmod>2020-01-05T00:00:00Z</lastmod>
-        <xhtml:meta name="auto_sitemap_md5_hash" content="5c3e45e7c1558d67050cb19c0dc390fd" />
-        }
-    </url>
-    <url>
-        <loc>http://localhost:3000/a</loc>
-        <lastmod>2020-01-06T00:00:00Z</lastmod>
-    </url>
-    <url>
-        <loc>http://localhost:3000/b</loc>
-        <lastmod>2020-01-07T00:00:00Z</lastmod>
-        <xhtml:meta name="auto_sitemap_md5_hash" content="0123456789abcdef0123456789abcdef" />
-    </url>
-    <url>
-        <loc>http://localhost:3000/old-nonexistent-page-with-hash</loc>
-        <lastmod>2020-01-08T00:00:00Z</lastmod>
-        <xhtml:meta name="auto_sitemap_md5_hash" content="0123456789abcdef0123456789abcdef" />
-    </url>
-    <url>
-        <loc>http://localhost:3000/old-nonexistent-page-without-hash</loc>
-        <lastmod>2020-01-09T00:00:00Z</lastmod>
-    </url>
-</urlset>"#;
+        let old_sitemap_str = include_str!("data/old-sitemap.xml");
 
         let old_sitemap = Sitemap::deserialize(old_sitemap_str.as_bytes()).unwrap();
 
@@ -143,46 +112,27 @@ mod sitemap {
         Ok(sitemap)
     }
 
+    // Reachable from / and /c.
     async fn root() -> Html<&'static str> {
-        Html(
-            r#"
-            <html><body>
-                <a href="/a">Reachable from home</a>
-                <a href="/b">Reachable from home and a</a>
-            </body></html>
-        "#,
-        )
+        Html(include_str!("data/html-site/root.html"))
     }
 
+    // Reachable from /.
     async fn a() -> Html<&'static str> {
-        Html(
-            r#"
-            <html>
-                <body>
-                    <a href="/b">Reachable from home and a</a>
-                    <a href="/c">Reachable from home a</a>
-                </body>
-            </html>
-        "#,
-        )
+        Html(include_str!("data/html-site/a.html"))
     }
 
+    // Reachable from /home and /a.
     async fn b() -> Html<&'static str> {
-        Html(
-            r#"
-            <html></html>
-        "#,
-        )
+        Html(include_str!("data/html-site/b.html"))
     }
 
+    // Reachable from /a and /c.
     async fn c() -> Html<&'static str> {
-        Html(
-            r#"
-            <html></html>
-        "#,
-        )
+        Html(include_str!("data/html-site/c.html"))
     }
 
+    // Unreachable.
     async fn d() -> Html<&'static str> {
         Html(
             r#"
