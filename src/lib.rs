@@ -48,7 +48,7 @@ impl Sitemap {
 
         for page in website.get_pages().unwrap().iter() {
             let url = Url::parse(page.get_url()).map_err(|e| e.to_string())?;
-            let contents = page.get_html().trim();
+            let contents = page.get_html().trim().replace("\r\n", "\n"); // normalize line endings
             let hash = md5::compute(contents);
             pages.push(Page {
                 url,
