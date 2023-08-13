@@ -68,10 +68,10 @@ mod sitemap {
 
             // Lastmod should be updated to less than 1 second after `start_time`.
             if updated_urls.contains(&page.url) {
-                assert!(lastmod > start_time);
-                assert!(lastmod < start_time + chrono::Duration::seconds(1));
+                more_asserts::assert_lt!(start_time, lastmod);
+                more_asserts::assert_lt!(lastmod, start_time + chrono::Duration::seconds(1));
             } else {
-                assert!(lastmod < start_time);
+                more_asserts::assert_lt!(lastmod, start_time);
             }
         }
     }
