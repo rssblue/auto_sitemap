@@ -111,23 +111,49 @@ mod sitemap {
     }
 
     // Reachable from / and /c.
+    // Also ensure it works on all OSs by importing a file, which may have \n or \r\n line endings.
     async fn root() -> Html<&'static str> {
-        Html(include_str!("data/html-site/root.html"))
+        Html(include_str!("data/root.html"))
     }
 
     // Reachable from /.
     async fn a() -> Html<&'static str> {
-        Html(include_str!("data/html-site/a.html"))
+        Html(
+            r#"
+<html>
+  <body>
+    <a href="/b">Reachable from home and a</a>
+    <a href="/c">Reachable from home a</a>
+  </body>
+</html>
+"#,
+        )
     }
 
     // Reachable from /home and /a.
     async fn b() -> Html<&'static str> {
-        Html(include_str!("data/html-site/b.html"))
+        Html(
+            r#"
+<html>
+  <body>
+  </body>
+</html>
+"#,
+        )
     }
 
     // Reachable from /a and /c.
     async fn c() -> Html<&'static str> {
-        Html(include_str!("data/html-site/c.html"))
+        Html(
+            r#"
+<html>
+  <body>
+    <a href="/c">Reachable from itself</a>
+    <a href="/root">Reachable from home and c</a>
+  </body>
+</html>
+"#,
+        )
     }
 
     // Unreachable.
