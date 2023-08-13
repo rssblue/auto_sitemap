@@ -44,7 +44,7 @@ mod sitemap {
     async fn test_generation_and_update() {
         let start_time = chrono::Utc::now();
 
-        let (mut new_sitemap, old_sitemap) = obtain_sitemaps().await.unwrap();
+        let (mut new_sitemap, mut old_sitemap) = obtain_sitemaps().await.unwrap();
 
         let correct_urls = vec![
             Url::parse("http://localhost:3000/").unwrap(),
@@ -59,14 +59,24 @@ mod sitemap {
             pretty_assertions::assert_eq!(page.url, correct_url.clone());
         }
 
+        old_sitemap.update_domain("http://localhost:3000").unwrap();
         new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
+        new_sitemap.update_domain("https://example.com").unwrap();
 
         let end_time = chrono::Utc::now();
 
+        let correct_urls = vec![
+            Url::parse("https://example.com/").unwrap(),
+            Url::parse("https://example.com/a").unwrap(),
+            Url::parse("https://example.com/b").unwrap(),
+            Url::parse("https://example.com/c").unwrap(),
+            // Shouldn't be reachable by crawling:
+            // Url::parse("http://localhost:3000/d").unwrap(),
+        ];
         let updated_urls = vec![
-            Url::parse("http://localhost:3000/a").unwrap(),
-            Url::parse("http://localhost:3000/b").unwrap(),
-            Url::parse("http://localhost:3000/c").unwrap(),
+            Url::parse("https://example.com/a").unwrap(),
+            Url::parse("https://example.com/b").unwrap(),
+            Url::parse("https://example.com/c").unwrap(),
         ];
         for (page, correct_url) in new_sitemap.pages.iter().zip(correct_urls.iter()) {
             pretty_assertions::assert_eq!(page.url, correct_url.clone());

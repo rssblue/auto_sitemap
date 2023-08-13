@@ -135,6 +135,32 @@ impl Sitemap {
 
         Ok(())
     }
+
+    /// Updates domain of the website for which the sitemap is generated.
+    /// Possible use: a sitemap is generated for a locally running website (e.g. localhost:8000),
+    /// but the website is deployed to a different domain (e.g. example.com).
+    pub fn update_domain(&mut self, new_domain: impl AsRef<str>) -> Result<(), String> {
+        let new_domain = new_domain.as_ref();
+        let new_domain = Url::parse(new_domain).map_err(|e| e.to_string())?;
+        if new_domain.scheme() != "http" && new_domain.scheme() != "https" {
+            return Err("URL should start with http:// or https://".to_string());
+        }
+        let new_scheme = new_domain.scheme();
+        let new_host = new_domain.host_str().ok_or("failed to get host")?;
+        let new_port = new_domain.port();
+
+        for page in self.pages.iter_mut() {
+            let mut url = page.url.clone();
+            url.set_host(Some(new_host)).map_err(|e| e.to_string())?;
+            url.set_scheme(new_scheme)
+                .map_err(|_| "failed to set scheme".to_string())?;
+            url.set_port(new_port)
+                .map_err(|_| "failed to set port".to_string())?;
+            page.url = url;
+        }
+
+        Ok(())
+    }
 }
 
 /// Page of the website.
