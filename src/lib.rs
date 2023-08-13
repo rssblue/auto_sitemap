@@ -47,6 +47,41 @@ impl Sitemap {
         Ok(Self { pages })
     }
 
+    /// Imports sitemap from URL or local file.
+    pub async fn import(url_or_filepath: impl AsRef<str>) -> Result<Self, String> {
+        let url_or_filepath = url_or_filepath.as_ref();
+        if url_or_filepath.starts_with("http://") || url_or_filepath.starts_with("https://") {
+            Self::import_from_url(url_or_filepath).await
+        } else {
+            Self::import_from_file(url_or_filepath)
+        }
+    }
+
+    /// Imports sitemap from URL.
+    async fn import_from_url(url: &str) -> Result<Self, String> {
+        let response = reqwest::get(url)
+            .await
+            .map_err(|e| format!("failed to get {}: {}", url, e))?;
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("failed to get {}: {}", url, e))?;
+        let sitemap = Self::deserialize(&bytes[..])?;
+
+        Ok(sitemap)
+    }
+
+    /// Imports sitemap from local file.
+    fn import_from_file(filepath: &str) -> Result<Self, String> {
+        let file = std::fs::File::open(filepath)
+            .map_err(|e| format!("failed to open {}: {}", filepath, e))?;
+
+        let sitemap = Self::deserialize(file)?;
+
+        Ok(sitemap)
+    }
+
     /// Deserializes from XML sitemap.
     /// Additional fields are ignored.
     pub fn deserialize<R: std::io::Read>(reader: R) -> Result<Self, String> {

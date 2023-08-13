@@ -44,7 +44,7 @@ mod sitemap {
     async fn test_generation_and_update() {
         let start_time = chrono::Utc::now();
 
-        let mut new_sitemap = generate_sitemap().await.unwrap();
+        let (mut new_sitemap, old_sitemap) = obtain_sitemaps().await.unwrap();
 
         let correct_urls = vec![
             Url::parse("http://localhost:3000/").unwrap(),
@@ -58,10 +58,6 @@ mod sitemap {
         for (page, correct_url) in new_sitemap.pages.iter().zip(correct_urls.iter()) {
             pretty_assertions::assert_eq!(page.url, correct_url.clone());
         }
-
-        let old_sitemap_str = include_str!("data/old-sitemap.xml");
-
-        let old_sitemap = Sitemap::deserialize(old_sitemap_str.as_bytes()).unwrap();
 
         new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
 
@@ -85,13 +81,14 @@ mod sitemap {
         }
     }
 
-    async fn generate_sitemap() -> Result<Sitemap, String> {
+    async fn obtain_sitemaps() -> Result<(Sitemap, Sitemap), String> {
         let app = Router::new()
             .route("/", get(root))
             .route("/a", get(a))
             .route("/b", get(b))
             .route("/c", get(c))
-            .route("/d", get(d));
+            .route("/d", get(d))
+            .route("/sitemap.xml", get(sitemap));
 
         let port = 3000;
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
@@ -110,13 +107,17 @@ mod sitemap {
             }
         });
 
-        let mut sitemap = Sitemap::generate_by_crawling("http://localhost:3000").await?;
-        sitemap.sort_by_url();
+        let mut new_sitemap = Sitemap::generate_by_crawling("http://localhost:3000").await?;
+        new_sitemap.sort_by_url();
+
+        // Try with `url::Url` instead of `&str`:
+        let old_sitemap =
+            Sitemap::import(Url::parse("http://localhost:3000/sitemap.xml").unwrap()).await?;
 
         // Shut down the server...
         let _ = tx.send(());
 
-        Ok(sitemap)
+        Ok((new_sitemap, old_sitemap))
     }
 
     // Reachable from / and /c.
@@ -174,5 +175,10 @@ mod sitemap {
             </body></html>
         "#,
         )
+    }
+
+    // Sitemap.
+    async fn sitemap() -> &'static str {
+        include_str!("data/old-sitemap.xml")
     }
 }

@@ -16,6 +16,11 @@ let mut new_sitemap = auto_sitemap::Sitemap::generate_by_crawling("https://examp
     .await
     .unwrap();
 
+// Downloads the old sitemap.
+let old_sitemap = auto_sitemap::Sitemap::import("https://example.com/sitemap.xml")
+    .await
+    .unwrap();
+
 // Combines with URLs from the old site.
 // If a hash of a page is different, its `lastmod` value is updated.
 new_sitemap.combine_with_old_sitemap(&old_sitemap).unwrap();
